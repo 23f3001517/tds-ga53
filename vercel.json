@@ -1,0 +1,14 @@
+{
+  "builds": [
+    {
+      "src": "guardrail.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "guardrail.py"
+    }
+  ]
+}
