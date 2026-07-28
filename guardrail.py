@@ -91,26 +91,31 @@ def check_bash(command: str) -> dict:
 
 def check_write_file(path: str) -> dict:
     """
-    Uses posixpath to mathematically guarantee writes stay inside the output boundary,
-    preventing both OS-specific bugs and substring bypasses.
+    Strictly enforces writes to /workspace/output/ only.
+    Neutralizes cross-OS backslash traversal attacks.
     """
+    # 1. Normalize backslashes to forward slashes to prevent OS-specific bypasses
+    path = path.replace("\\", "/")
+    
+    # 2. Expand home directory safely if the agent uses ~/
+    if path.startswith("~/"):
+        path = "/home/agent/" + path[2:]
+    elif path == "~":
+        path = "/home/agent"
+
     working_dir = "/home/agent/workspace"
     
-    # posixpath explicitly handles Linux pathing regardless of the OS running this server
+    # 3. Mathematically resolve the path
     resolved_path = posixpath.normpath(posixpath.join(working_dir, path))
     
-    allowed_dirs = [
-        "/workspace/output", 
-        "/home/agent/workspace/output"
-    ]
+    # 4. Strict boundary check: ONLY the exact /workspace/output/ is allowed.
+    allowed_dir = "/workspace/output"
     
-    for allowed in allowed_dirs:
-        # Must exactly match the directory OR be entirely inside it
-        # The trailing '/' prevents substring bypasses like /workspace/output_hacked
-        if resolved_path == allowed or resolved_path.startswith(allowed + "/"):
-            return {"decision": "allow", "reason": "Inside allowed output directory."}
+    # Must be exactly the directory or strictly inside it (the + "/" prevents substring attacks)
+    if resolved_path == allowed_dir or resolved_path.startswith(allowed_dir + "/"):
+        return {"decision": "allow", "reason": "Inside allowed output directory."}
 
-    return {"decision": "block", "reason": "Write path traversal attempt or outside allowed directory."}
+    return {"decision": "block", "reason": "Write path traversal attempt or outside strict allowed directory."}
 
 
 def check_http_request(url: str) -> dict:
